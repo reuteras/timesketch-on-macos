@@ -1,0 +1,39 @@
+# Use the official Docker Hub Ubuntu base image
+FROM ubuntu:24.04
+
+ARG RELEASE_TAG
+ARG PPA_TRACK=stable
+ENV PATH=/root/.local/bin:/.venv/bin:$PATH
+
+# Prevent needing to configure debian packages, stopping the setup of
+# the docker container.
+RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        software-properties-common \
+        build-essential \
+        pipx \
+        python3-wheel \
+        python3-setuptools \
+        python3-psycopg2 \
+        gpg-agent \
+        wget \
+        tzdata && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Timesketch
+RUN wget https://raw.githubusercontent.com/google/timesketch/$RELEASE_TAG/requirements.txt
+RUN pipx install uv && \
+    uv venv --python 3.10 && \
+    uv pip install -r requirements.txt && \
+    uv pip install https://github.com/google/timesketch/archive/$RELEASE_TAG.zip && \
+    uv pip install psycopg2-binary plaso && \
+    ln -s /.venv/bin/psort /.venv/bin/psort.py
+
+# Copy the entrypoint script into the container
+COPY docker/release/build/docker-entrypoint.sh /
+RUN chmod a+x /docker-entrypoint.sh
+RUN mkdir /var/log/timesketch
+
+# Load the entrypoint script to be run later
+#ENTRYPOINT ["/docker-entrypoint.sh"]

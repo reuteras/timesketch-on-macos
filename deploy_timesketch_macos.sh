@@ -17,7 +17,7 @@ set -e
 
 START_CONTAINER=
 SKIP_CREATE_USER=
-RELEASE_TAG=20250708
+RELEASE_TAG=20250807
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in

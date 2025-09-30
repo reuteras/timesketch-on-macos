@@ -62,7 +62,7 @@ if ! docker compose &>/dev/null; then
 fi
 
 # Exit early if there are Timesketch containers already running.
-if [ ! -z "$(docker ps | grep timesketch)" ]; then
+if [ -n "$(docker ps | grep timesketch)" ]; then
   echo "ERROR: Timesketch containers already running."
   exit 1
 fi
@@ -146,7 +146,7 @@ echo
 echo "* Installation done."
 
 if [ -z $START_CONTAINER ]; then
-  read -p "Would you like to start the containers? [y/N]" START_CONTAINER
+  read -rp "Would you like to start the containers? [y/N]" START_CONTAINER
 fi
 
 if [ "$START_CONTAINER" != "${START_CONTAINER#[Yy]}" ] ;then # this grammar (the #[] operator) means that the variable $start_cnt where any Y or y in 1st position will be dropped if they exist.
@@ -159,7 +159,7 @@ if [ "$START_CONTAINER" != "${START_CONTAINER#[Yy]}" ] ;then # this grammar (the
   while true; do
     # Suppress errors in case container is not yet created or health check not configured
     NGINX_SERVER=$(hostname)
-    HEALTH_STATUS=$(curl -o /dev/null -w "%{http_code}" -L -s http://$NGINX_SERVER || echo "checking")
+    HEALTH_STATUS=$(curl -o /dev/null -w "%{http_code}" -L -s "http://$NGINX_SERVER" || echo "checking")
     if [ "$HEALTH_STATUS" = "200" ]; then
       echo ".OK"
       break
@@ -203,13 +203,13 @@ else
 fi
 
 if [ -z "$SKIP_CREATE_USER" ]; then
-  read -p "Would you like to create a new timesketch user? [y/N]" CREATE_USER
+  read -rp "Would you like to create a new timesketch user? [y/N]" CREATE_USER
 fi
 
 if [ "$CREATE_USER" != "${CREATE_USER#[Yy]}" ] ;then
-  read -p "Please provide a new username: " NEWUSERNAME
+  read -rp "Please provide a new username: " NEWUSERNAME
 
-  if [ ! -z "$NEWUSERNAME" ] ;then
+  if [ -n "$NEWUSERNAME" ] ;then
     docker compose exec timesketch-web tsctl create-user "$NEWUSERNAME"
   fi
 fi

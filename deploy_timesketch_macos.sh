@@ -65,7 +65,7 @@ if ! docker compose &>/dev/null; then
 fi
 
 # Exit early if there are Timesketch containers already running.
-if docker ps | grep -q timesketch ]; then
+if docker ps | grep -q timesketch ; then
     echo "ERROR: Timesketch containers already running."
     exit 1
 fi

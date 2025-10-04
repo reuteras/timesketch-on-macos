@@ -23,48 +23,51 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --start-container) START_CONTAINER=yes ;;
         --skip-create-user) SKIP_CREATE_USER=yes ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
+        *)
+            echo "Unknown parameter passed: $1"
+            exit 1
+            ;;
     esac
     shift
 done
 
 # Exit early if a timesketch directory already exists.
 if [ -d "./timesketch" ]; then
-  echo "ERROR: Timesketch directory already exist."
-  exit 1
+    echo "ERROR: Timesketch directory already exist."
+    exit 1
 fi
 
 # Exit early if git is not installed.
 if ! command -v git &> /dev/null ; then
-  echo "ERROR: git is not available."
-  echo "See: https://brew.sh to install brew and then git."
-  exit 1
+    echo "ERROR: git is not available."
+    echo "See: https://brew.sh to install brew and then git."
+    exit 1
 fi
 
 # Exit early if gtr is not installed.
 if ! command -v gtr &> /dev/null ; then
-  echo "ERROR: gtr is not available."
-  echo "See: https://brew.sh to install brew and then coreutils (to have gtr instead of tr)."
-  exit 1
+    echo "ERROR: gtr is not available."
+    echo "See: https://brew.sh to install brew and then coreutils (to have gtr instead of tr)."
+    exit 1
 fi
 
 # Exit early if docker is not installed.
 if ! command -v docker &> /dev/null ; then
-  echo "ERROR: Docker is not available."
-  echo "See: https://docs.docker.com/engine/install/ubuntu/"
-exit 1
+    echo "ERROR: Docker is not available."
+    echo "See: https://docs.docker.com/engine/install/ubuntu/"
+    exit 1
 fi
 
 # Exit early if docker compose is not installed.
 if ! docker compose &>/dev/null; then
-  echo "ERROR: docker-compose-plugin is not installed."
-  exit 1
+    echo "ERROR: docker-compose-plugin is not installed."
+    exit 1
 fi
 
 # Exit early if there are Timesketch containers already running.
-if [ -n "$(docker ps | grep timesketch)" ]; then
-  echo "ERROR: Timesketch containers already running."
-  exit 1
+if docker ps | grep -q timesketch ]; then
+    echo "ERROR: Timesketch containers already running."
+    exit 1
 fi
 
 if [ ! -d timesketch.git ]; then
@@ -100,16 +103,19 @@ echo "* Setting OpenSearch memory allocation to ${OPENSEARCH_MEM_USE_GB}GB"
 
 # Docker compose and configuration
 echo -n "* Fetching configuration files.."
+# shellcheck disable=SC2086
 curl -s $GITHUB_BASE_URL/docker/release/docker-compose.yml | \
     grep -vE "^version: " | \
     sed -e "s#command: t#command: /docker-entrypoint.sh t#" | \
     sed -e "s#us-docker.pkg.dev/osdfir-registry/timesketch/##" > timesketch/docker-compose.yml
+# shellcheck disable=SC2086
 curl -s $GITHUB_BASE_URL/docker/release/config.env | \
     sed -e 's#^POSTGRES_PASSWORD=#POSTGRES_PASSWORD='$POSTGRES_PASSWORD'#' | \
     sed -e 's#^OPENSEARCH_MEM_USE_GB=#OPENSEARCH_MEM_USE_GB='$OPENSEARCH_MEM_USE_GB'#' | \
     sed -e "s/NUM_WSGI_WORKERS=4/NUM_WSGI_WORKERS=1/" > timesketch/config.env
 
 # Fetch default Timesketch config files
+# shellcheck disable=SC2086
 curl -s $GITHUB_BASE_URL/data/timesketch.conf | \
     sed -e 's#SECRET_KEY = \x27\x3CKEY_GOES_HERE\x3E\x27#SECRET_KEY = \x27'$SECRET_KEY'\x27#' | \
     sed -e 's#^OPENSEARCH_HOST = .*#OPENSEARCH_HOST = "'$OPENSEARCH_ADDRESS'"#' | \
@@ -146,70 +152,70 @@ echo
 echo "* Installation done."
 
 if [ -z $START_CONTAINER ]; then
-  read -rp "Would you like to start the containers? [y/N]" START_CONTAINER
+    read -rp "Would you like to start the containers? [y/N]" START_CONTAINER
 fi
 
 if [ "$START_CONTAINER" != "${START_CONTAINER#[Yy]}" ] ;then # this grammar (the #[] operator) means that the variable $start_cnt where any Y or y in 1st position will be dropped if they exist.
-  cd timesketch
-  echo "* Starting Timesketch containers..."
-  docker compose up -d
-  echo -n "* Waiting for Timesketch web interface to become healthy.."
-  TIMEOUT=300 # 5 minutes timeout
-  SECONDS=0
-  while true; do
-    # Suppress errors in case container is not yet created or health check not configured
-    NGINX_SERVER=$(hostname)
-    HEALTH_STATUS=$(curl -o /dev/null -w "%{http_code}" -L -s "http://$NGINX_SERVER" || echo "checking")
-    if [ "$HEALTH_STATUS" = "200" ]; then
-      echo ".OK"
-      break
-    fi
-    if [ $SECONDS -gt $TIMEOUT ]; then
-      echo ".FAIL"
-      echo "ERROR: Timesketch web container did not become healthy after $TIMEOUT seconds."
-      echo "Please check the container logs: docker logs timesketch-web"
-      exit 1
-    fi
-    echo -n "."
-    sleep 5
-  done
+    cd timesketch
+    echo "* Starting Timesketch containers..."
+    docker compose up -d
+    echo -n "* Waiting for Timesketch web interface to become healthy.."
+    TIMEOUT=300 # 5 minutes timeout
+    SECONDS=0
+    while true; do
+        # Suppress errors in case container is not yet created or health check not configured
+        NGINX_SERVER=$(hostname)
+        HEALTH_STATUS=$(curl -o /dev/null -w "%{http_code}" -L -s "http://$NGINX_SERVER" || echo "checking")
+        if [ "$HEALTH_STATUS" = "200" ]; then
+            echo ".OK"
+        break
+        fi
+        if [ $SECONDS -gt $TIMEOUT ]; then
+            echo ".FAIL"
+            echo "ERROR: Timesketch web container did not become healthy after $TIMEOUT seconds."
+            echo "Please check the container logs: docker logs timesketch-web"
+            exit 1
+        fi
+        echo -n "."
+        sleep 5
+    done
 
-  echo
-  echo "Timesketch is now running!"
-  echo "You can typically access it by navigating to:"
-  echo "  http://<YOUR_SERVER_IP_OR_HOSTNAME>"
-  echo
-  echo "IMPORTANT: By default, Timesketch is running WITHOUT SSL/TLS encryption."
-  echo "For production use, it is CRITICAL to configure SSL/TLS for HTTPS access (https://<YOUR_SERVER_IP_OR_HOSTNAME>)."
-  echo "Please follow the SSL/TLS setup instructions here:"
-  echo "  https://timesketch.org/guides/admin/https/"
-  echo
+    echo
+    echo "Timesketch is now running!"
+    echo "You can typically access it by navigating to:"
+    echo "  http://<YOUR_SERVER_IP_OR_HOSTNAME>"
+    echo
+    echo "IMPORTANT: By default, Timesketch is running WITHOUT SSL/TLS encryption."
+    echo "For production use, it is CRITICAL to configure SSL/TLS for HTTPS access (https://<YOUR_SERVER_IP_OR_HOSTNAME>)."
+    echo "Please follow the SSL/TLS setup instructions here:"
+    echo "  https://timesketch.org/guides/admin/https/"
+    echo
 else
-  echo
-  echo "You have chosen not to start the containers,"
-  echo "if you wish to do so later, you can start timesketch container as below"
-  echo
-  echo "Start the system:"
-  echo "1. cd timesketch"
-  echo "2. docker compose up -d"
-  echo "3. docker compose exec timesketch-web tsctl create-user <USERNAME>"
-  echo
-  echo "WARNING: The server is running without encryption."
-  echo "Follow the instructions to enable SSL to secure the communications:"
-  echo "https://github.com/google/timesketch/blob/master/docs/Installation.md"
-  echo
-  echo
-  exit
+    echo
+    echo "You have chosen not to start the containers,"
+    echo "if you wish to do so later, you can start timesketch container as below"
+    echo
+    echo "Start the system:"
+    echo "1. cd timesketch"
+    echo "2. docker compose up -d"
+    echo "3. docker compose exec timesketch-web tsctl create-user <USERNAME>"
+    echo
+    echo "WARNING: The server is running without encryption."
+    echo "Follow the instructions to enable SSL to secure the communications:"
+    echo "https://github.com/google/timesketch/blob/master/docs/Installation.md"
+    echo
+    echo
+    exit
 fi
 
 if [ -z "$SKIP_CREATE_USER" ]; then
-  read -rp "Would you like to create a new timesketch user? [y/N]" CREATE_USER
+    read -rp "Would you like to create a new timesketch user? [y/N]" CREATE_USER
 fi
 
 if [ "$CREATE_USER" != "${CREATE_USER#[Yy]}" ] ;then
-  read -rp "Please provide a new username: " NEWUSERNAME
+    read -rp "Please provide a new username: " NEWUSERNAME
 
-  if [ -n "$NEWUSERNAME" ] ;then
-    docker compose exec timesketch-web tsctl create-user "$NEWUSERNAME"
-  fi
+    if [ -n "$NEWUSERNAME" ] ;then
+        docker compose exec timesketch-web tsctl create-user "$NEWUSERNAME"
+    fi
 fi
